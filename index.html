@@ -9,13 +9,13 @@
     <style>
         body {
             margin: 0;
-            padding: 0;
+            padding: 20px 0; /* Thêm khoảng trống trên dưới để không bị sát mép */
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-image: url('https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExMTlqeTB1cjM3cm91bGdpb2ZnMHMyd3hyeDB0MTFjcWZ6cnk5d2NxbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/83uL5CWP026dgqVm6g/giphy.gif'); 
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
-            height: 100vh;
+            min-height: 100vh; /* Đổi height thành min-height */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -91,7 +91,7 @@
             width: 40%;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 10px;
             z-index: 2;
         }
         .item {
@@ -288,7 +288,7 @@
             // Reset dữ liệu input và thời gian
             playerNameInput.value = '';
             timeLeft = 60;
-            timerEl.innerText = timeLeft;
+            timerEl.innerText = "TIME LEFT: " + timeLeft + "s";
 
             // Bật lại nhạc chờ
             bgAudio.play().catch(e => console.log("Lỗi chạy nhạc nền: ", e));
@@ -402,19 +402,19 @@
         window.addEventListener('resize', updateLines);
 
         // Xử lý đếm ngược
-        function startTimer() {
-            clearInterval(timerInterval); // Xóa interval cũ nếu có để tránh lỗi chạy nhanh
-            timeLeft = 60; // Luôn reset về 60 giây khi bắt đầu
-            timerEl.innerText = timeLeft;
-            
-            timerInterval = setInterval(() => {
-                timeLeft--;
-                timerEl.innerText = timeLeft;
-                if (timeLeft <= 0) {
-                    endGame();
-                }
-            }, 1000);
+function startTimer() {
+    clearInterval(timerInterval); // Xóa interval cũ nếu có để tránh lỗi chạy nhanh
+    timeLeft = 60; // Luôn reset về 60 giây khi bắt đầu
+    timerEl.innerText = "TIME LEFT: " + timeLeft + "s";
+    
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        timerEl.innerText = "TIME LEFT: " + timeLeft + "s";
+        if (timeLeft <= 0) {
+            endGame();
         }
+    }, 1000);
+}
 
         // Nút FINISH
         document.getElementById('finish-btn').addEventListener('click', endGame);
