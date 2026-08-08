@@ -26,7 +26,7 @@
             display: none;
             width: 90%;
             max-width: 900px;
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.85);
             padding: 30px;
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
@@ -148,6 +148,18 @@
         .score-text {
             color: #ff9800;
             font-size: 50px;
+            display: block;
+            margin-bottom: 20px;
+        }
+        
+        /* CSS cho nút Return */
+        #return-btn {
+            background-color: #FFF2B2;
+            color: #333; /* Chữ màu tối để nổi bật trên nền vàng nhạt */
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        #return-btn:hover {
+            background-color: #ffe066;
         }
     </style>
 </head>
@@ -194,6 +206,7 @@
             <span id="display-name"></span> YOU GET <br>
             <span class="score-text"><span id="score">0</span> / <span id="total-score">0</span></span>
         </h1>
+        <button id="return-btn">RETURN</button>
     </div>
 
     <script>
@@ -204,7 +217,7 @@
             { id: 1, word: "mountains", image: "https://cdn2.tuoitre.vn/phunuonline/image/fckeditor/upload/2023/20230323/images/2643_4-truong1.jpg" },
             { id: 2, word: "village", image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQtxhMc-gYabf7Gs_HNuQKWTKDQiwoSnxXG5vuKRNSuTqH2s5ze12CVJDuJ&s=10" },
             { id: 3, word: "city", image: "https://image.vietnamnews.vn/uploadvnnews/Article/2023/9/2/302625_1.jpg" },
-            { id: 4, word: "town)", image: "https://yourhomework.net/yhw/f/yhw-voca/2023/11/1/202311150625195762436.jpg" }
+            { id: 4, word: "town", image: "https://yourhomework.net/yhw/f/yhw-voca/2023/11/1/202311150625195762436.jpg" }
         ];
 
         // Biến toàn cục
@@ -254,7 +267,31 @@
             tickAudio.play().catch(e => console.log("Lỗi chạy âm thanh tíc tắc"));
 
             initGame();
-            startTimer();
+            startTimer(); // Gọi hàm đếm ngược
+        });
+
+        // Nút RETURN (Quay lại trang chủ)
+        document.getElementById('return-btn').addEventListener('click', () => {
+            // Dừng hiệu ứng pháo hoa
+            if (typeof confetti.reset === 'function') {
+                confetti.reset();
+            }
+
+            // Dừng nhạc chiến thắng
+            winAudio.pause();
+            winAudio.currentTime = 0;
+
+            // Chuyển đổi màn hình
+            resultScreen.classList.remove('active-screen');
+            introScreen.classList.add('active-screen');
+
+            // Reset dữ liệu input và thời gian
+            playerNameInput.value = '';
+            timeLeft = 60;
+            timerEl.innerText = timeLeft;
+
+            // Bật lại nhạc chờ
+            bgAudio.play().catch(e => console.log("Lỗi chạy nhạc nền: ", e));
         });
 
         // Hàm xáo trộn mảng (Fisher-Yates)
@@ -273,6 +310,8 @@
             rightCol.innerHTML = '';
             svgLayer.innerHTML = '';
             connections = [];
+            selectedLeft = null;
+            selectedRight = null;
 
             const shuffledWords = shuffleArray(gameData);
             const shuffledImages = shuffleArray(gameData);
@@ -364,6 +403,10 @@
 
         // Xử lý đếm ngược
         function startTimer() {
+            clearInterval(timerInterval); // Xóa interval cũ nếu có để tránh lỗi chạy nhanh
+            timeLeft = 60; // Luôn reset về 60 giây khi bắt đầu
+            timerEl.innerText = timeLeft;
+            
             timerInterval = setInterval(() => {
                 timeLeft--;
                 timerEl.innerText = timeLeft;
@@ -380,6 +423,7 @@
         function endGame() {
             clearInterval(timerInterval);
             tickAudio.pause();
+            tickAudio.currentTime = 0; // Reset âm thanh tíc tắc về đầu
             
             let score = 0;
             connections.forEach(conn => {
@@ -412,13 +456,13 @@
             }
 
             var interval = setInterval(function() {
-                var timeLeft = animationEnd - Date.now();
+                var timeRemaining = animationEnd - Date.now();
 
-                if (timeLeft <= 0) {
+                if (timeRemaining <= 0) {
                     return clearInterval(interval);
                 }
 
-                var particleCount = 50 * (timeLeft / duration);
+                var particleCount = 50 * (timeRemaining / duration);
                 
                 confetti(Object.assign({}, defaults, { 
                     particleCount,
