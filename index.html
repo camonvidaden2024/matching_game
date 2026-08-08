@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
@@ -6,7 +6,9 @@
     <title>MATCHING GAME</title>
     <!-- Thư viện tạo hiệu ứng pháo hoa -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-  <style>
+    <!-- Thư viện YouTube IFrame API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <style>
         body {
             margin: 0;
             padding: 0;
@@ -26,7 +28,7 @@
         .overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255, 255, 255, 0.85);
+            background: rgba(255, 255, 255, 0.45);
             z-index: -1;
         }
 
@@ -162,10 +164,10 @@
 <body>
     <div class="overlay"></div>
 
-    <!-- AUDIO ELEMENTS -->
-    <audio id="bg-audio" loop>
-        <source src="bg-music.mp3" type="audio/mpeg">
-    </audio>
+    <!-- Nơi chứa trình phát YouTube ẩn -->
+    <div id="youtube-audio-player" style="display: none;"></div>
+
+    <!-- AUDIO ELEMENTS (Giữ lại tick-audio và win-audio) -->
     <audio id="tick-audio" loop>
         <source src="tick-tock.mp3" type="audio/mpeg">
     </audio>
@@ -175,8 +177,8 @@
 
     <!-- MÀN HÌNH BẮT ĐẦU -->
     <div id="intro-screen" class="screen active-screen">
-        <h1>TRÒ CHƠI NỐI TỪ</h1>
-        <input type="text" id="player-name" placeholder="Nhập tên của bạn vào đây..."><br>
+        <h1>MATCHING GAME</h1>
+        <input type="text" id="player-name" placeholder="Your name is ..."><br>
         <button id="start-btn">START</button>
     </div>
 
@@ -204,7 +206,37 @@
 
     <script>
         // ==========================================
-        // CÀI ĐẶT NỘI DUNG BÀI TẬP Ở ĐÂY
+        // CÀI ĐẶT YOUTUBE AUDIO BACKGROUND
+        // ==========================================
+        let ytPlayer;
+        let isYtReady = false;
+        let userInteracted = false;
+
+        function onYouTubeIframeAPIReady() {
+            ytPlayer = new YT.Player('youtube-audio-player', {
+                height: '0',
+                width: '0',
+                videoId: 'wybO2bdes8I', // ID của video YouTube bạn cung cấp
+                playerVars: {
+                    'autoplay': 0,
+                    'controls': 0,
+                    'loop': 1,
+                    'playlist': 'wybO2bdes8I' // Cần thiết để lặp lại trên Iframe
+                },
+                events: {
+                    'onReady': function(event) {
+                        isYtReady = true;
+                        // Nếu người dùng đã click trang trước khi YouTube load xong
+                        if (userInteracted && document.getElementById('intro-screen').classList.contains('active-screen')) {
+                            ytPlayer.playVideo();
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // DỮ LIỆU BÀI TẬP
         // ==========================================
         const gameData = [
             { id: 1, word: "Apple (Quả táo)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Red_Apple.jpg/256px-Red_Apple.jpg" },
@@ -219,9 +251,8 @@
         let timerInterval;
         let selectedLeft = null;
         let selectedRight = null;
-        let connections = []; // Mảng lưu các cặp đã nối [{leftId, rightId, lineElement}]
+        let connections = []; 
 
-        // Elements
         const introScreen = document.getElementById('intro-screen');
         const gameScreen = document.getElementById('game-screen');
         const resultScreen = document.getElementById('result-screen');
@@ -231,15 +262,14 @@
         const rightCol = document.getElementById('right-col');
         const svgLayer = document.getElementById('lines-svg');
         
-        // Audio Elements
-        const bgAudio = document.getElementById('bg-audio');
         const tickAudio = document.getElementById('tick-audio');
         const winAudio = document.getElementById('win-audio');
 
-        // Bật nhạc nền khi người dùng tương tác nhẹ với trang (chính sách trình duyệt)
+        // Bật nhạc nền YouTube khi người dùng tương tác nhẹ với trang
         document.body.addEventListener('click', () => {
-            if (introScreen.classList.contains('active-screen') && bgAudio.paused) {
-                bgAudio.play().catch(e => console.log("Audio play prevented by browser"));
+            userInteracted = true;
+            if (introScreen.classList.contains('active-screen') && isYtReady) {
+                ytPlayer.playVideo();
             }
         }, { once: true });
 
@@ -251,12 +281,14 @@
                 return;
             }
             
-            // Đổi màn hình
             introScreen.classList.remove('active-screen');
             gameScreen.classList.add('active-screen');
 
-            // Xử lý âm thanh
-            bgAudio.pause();
+            // Tắt nhạc nền Youtube khi bắt đầu chơi
+            if (isYtReady && typeof ytPlayer.pauseVideo === 'function') {
+                ytPlayer.pauseVideo();
+            }
+            // Bật tiếng tíc tắc
             tickAudio.play().catch(e => console.log("Lỗi chạy âm thanh tíc tắc"));
 
             initGame();
@@ -275,17 +307,14 @@
 
         // Khởi tạo Game
         function initGame() {
-            // Xóa dữ liệu cũ
             leftCol.innerHTML = '';
             rightCol.innerHTML = '';
             svgLayer.innerHTML = '';
             connections = [];
 
-            // Xáo trộn 2 cột độc lập
             const shuffledWords = shuffleArray(gameData);
             const shuffledImages = shuffleArray(gameData);
 
-            // Render Cột trái (Từ vựng)
             shuffledWords.forEach(data => {
                 const div = document.createElement('div');
                 div.className = 'item left-item';
@@ -295,7 +324,6 @@
                 leftCol.appendChild(div);
             });
 
-            // Render Cột phải (Hình ảnh)
             shuffledImages.forEach(data => {
                 const div = document.createElement('div');
                 div.className = 'item right-item';
@@ -308,7 +336,6 @@
 
         // Xử lý chọn ô
         function handleSelect(element, side) {
-            // Không cho chọn nếu đã nối
             if (element.classList.contains('matched')) return;
 
             if (side === 'left') {
@@ -321,23 +348,20 @@
                 selectedRight.classList.add('selected');
             }
 
-            // Nếu đã chọn đủ 2 bên, tiến hành nối
             if (selectedLeft && selectedRight) {
                 createConnection(selectedLeft, selectedRight);
                 
-                // Đánh dấu đã nối
                 selectedLeft.classList.remove('selected');
                 selectedRight.classList.remove('selected');
                 selectedLeft.classList.add('matched');
                 selectedRight.classList.add('matched');
 
-                // Reset biến chọn
                 selectedLeft = null;
                 selectedRight = null;
             }
         }
 
-        // Tạo đường kẻ (Chưa chấm đúng sai khúc này)
+        // Tạo đường kẻ
         function createConnection(leftEl, rightEl) {
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             svgLayer.appendChild(line);
@@ -353,7 +377,7 @@
             updateLines();
         }
 
-        // Cập nhật vị trí đường kẻ (khi scroll hoặc resize)
+        // Cập nhật vị trí đường kẻ
         function updateLines() {
             const containerRect = document.getElementById('game-container').getBoundingClientRect();
             
@@ -361,7 +385,6 @@
                 const leftRect = conn.leftEl.getBoundingClientRect();
                 const rightRect = conn.rightEl.getBoundingClientRect();
 
-                // Tính toán điểm giữa của mép phải cột trái và mép trái cột phải
                 const x1 = leftRect.right - containerRect.left;
                 const y1 = leftRect.top + (leftRect.height / 2) - containerRect.top;
                 
@@ -396,7 +419,6 @@
             clearInterval(timerInterval);
             tickAudio.pause();
             
-            // Tính điểm
             let score = 0;
             connections.forEach(conn => {
                 if (conn.leftId === conn.rightId) {
@@ -404,26 +426,22 @@
                 }
             });
 
-            // Chuyển màn hình
             gameScreen.classList.remove('active-screen');
             resultScreen.classList.add('active-screen');
 
-            // Cập nhật text kết quả
             document.getElementById('display-name').innerText = playerName;
             document.getElementById('score').innerText = score;
             document.getElementById('total-score').innerText = gameData.length;
 
-            // Bật nhạc win
             winAudio.currentTime = 0;
             winAudio.play().catch(e => console.log("Không tìm thấy/không chạy được nhạc win"));
 
-            // Kích hoạt pháo hoa 20 giây
             launchConfetti();
         }
 
-        // Hiệu ứng pháo hoa bằng thư viện canvas-confetti
+        // Hiệu ứng pháo hoa
         function launchConfetti() {
-            var duration = 20 * 1000; // 20 giây
+            var duration = 20 * 1000; 
             var animationEnd = Date.now() + duration;
             var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
 
@@ -440,7 +458,6 @@
 
                 var particleCount = 50 * (timeLeft / duration);
                 
-                // Bắn từ 2 bên màn hình
                 confetti(Object.assign({}, defaults, { 
                     particleCount,
                     origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
