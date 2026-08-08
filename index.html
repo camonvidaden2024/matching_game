@@ -1,0 +1,457 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trò chơi Nối Từ và Tranh</title>
+    <!-- Thư viện tạo hiệu ứng pháo hoa -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        /* CÀI ĐẶT HÌNH NỀN Ở ĐÂY (Có thể thay URL bằng link ảnh GIF của bạn) */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-image: url('https://images.unsplash.com/photo-1511649475669-e288648b2339?q=80&w=2000&auto=format&fit=crop'); /* Đổi link ảnh nền tại đây */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+        }
+
+        /* Lớp phủ làm mờ background một chút để dễ nhìn chữ */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.85);
+            z-index: -1;
+        }
+
+        .screen {
+            display: none;
+            width: 90%;
+            max-width: 900px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            position: relative;
+        }
+
+        .active-screen {
+            display: block;
+        }
+
+        /* --- Intro Screen --- */
+        #intro-screen h1 {
+            color: #ff5722;
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            padding: 15px;
+            font-size: 20px;
+            width: 80%;
+            max-width: 400px;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            outline: none;
+        }
+        input[type="text"]:focus {
+            border-color: #ff5722;
+        }
+        button {
+            padding: 15px 40px;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            background-color: #ff5722;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 5px 15px rgba(255, 87, 34, 0.4);
+        }
+        button:hover {
+            background-color: #e64a19;
+            transform: translateY(-3px);
+        }
+
+        /* --- Game Screen --- */
+        #timer {
+            font-size: 40px;
+            font-weight: bold;
+            color: #d32f2f;
+            margin-bottom: 20px;
+        }
+        .game-container {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            margin-bottom: 30px;
+        }
+        .column {
+            width: 40%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 2;
+        }
+        .item {
+            padding: 20px;
+            background: #fff;
+            border: 3px solid #e0e0e0;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 22px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80px;
+            transition: 0.2s;
+            user-select: none;
+        }
+        .item.selected {
+            border-color: #2196f3;
+            background-color: #e3f2fd;
+        }
+        .item.matched {
+            border-color: #4caf50;
+            background-color: #e8f5e9;
+            cursor: not-allowed;
+        }
+        .item img {
+            max-width: 100%;
+            max-height: 120px;
+            border-radius: 10px;
+        }
+        /* SVG vẽ đường thẳng */
+        #lines-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+        line {
+            stroke: black;
+            stroke-width: 4;
+            stroke-linecap: round;
+        }
+
+        /* --- Result Screen --- */
+        #result-screen h1 {
+            font-size: 40px;
+            color: #4caf50;
+            line-height: 1.5;
+        }
+        .score-text {
+            color: #ff9800;
+            font-size: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay"></div>
+
+    <!-- AUDIO ELEMENTS -->
+    <audio id="bg-audio" loop>
+        <source src="bg-music.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="tick-audio" loop>
+        <source src="tick-tock.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="win-audio">
+        <source src="winnersound.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- MÀN HÌNH BẮT ĐẦU -->
+    <div id="intro-screen" class="screen active-screen">
+        <h1>TRÒ CHƠI NỐI TỪ</h1>
+        <input type="text" id="player-name" placeholder="Nhập tên của bạn vào đây..."><br>
+        <button id="start-btn">START</button>
+    </div>
+
+    <!-- MÀN HÌNH CHƠI GAME -->
+    <div id="game-screen" class="screen">
+        <div id="timer">60</div>
+        <div class="game-container" id="game-container">
+            <svg id="lines-svg"></svg>
+            <!-- Cột trái: Từ vựng -->
+            <div class="column" id="left-col"></div>
+            <!-- Cột phải: Hình ảnh -->
+            <div class="column" id="right-col"></div>
+        </div>
+        <button id="finish-btn">FINISH</button>
+    </div>
+
+    <!-- MÀN HÌNH KẾT QUẢ -->
+    <div id="result-screen" class="screen">
+        <h1 id="result-message">
+            CONGRATULATIONS! <br>
+            <span id="display-name"></span> YOU GET <br>
+            <span class="score-text"><span id="score">0</span> / <span id="total-score">0</span></span>
+        </h1>
+    </div>
+
+    <script>
+        // ==========================================
+        // CÀI ĐẶT NỘI DUNG BÀI TẬP Ở ĐÂY
+        // ==========================================
+        const gameData = [
+            { id: 1, word: "Apple (Quả táo)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Red_Apple.jpg/256px-Red_Apple.jpg" },
+            { id: 2, word: "Dog (Con chó)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Collage_of_Nine_Dogs.jpg/256px-Collage_of_Nine_Dogs.jpg" },
+            { id: 3, word: "Car (Ô tô)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/2014_Toyota_Camry_%28ASV50R%29_Altise_sedan_%282015-05-29%29_01.jpg/256px-2014_Toyota_Camry_%28ASV50R%29_Altise_sedan_%282015-05-29%29_01.jpg" },
+            { id: 4, word: "Tree (Cái cây)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Ash_Tree_-_geograph.org.uk_-_590710.jpg/256px-Ash_Tree_-_geograph.org.uk_-_590710.jpg" }
+        ];
+
+        // Biến toàn cục
+        let playerName = "";
+        let timeLeft = 60;
+        let timerInterval;
+        let selectedLeft = null;
+        let selectedRight = null;
+        let connections = []; // Mảng lưu các cặp đã nối [{leftId, rightId, lineElement}]
+
+        // Elements
+        const introScreen = document.getElementById('intro-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const resultScreen = document.getElementById('result-screen');
+        const playerNameInput = document.getElementById('player-name');
+        const timerEl = document.getElementById('timer');
+        const leftCol = document.getElementById('left-col');
+        const rightCol = document.getElementById('right-col');
+        const svgLayer = document.getElementById('lines-svg');
+        
+        // Audio Elements
+        const bgAudio = document.getElementById('bg-audio');
+        const tickAudio = document.getElementById('tick-audio');
+        const winAudio = document.getElementById('win-audio');
+
+        // Bật nhạc nền khi người dùng tương tác nhẹ với trang (chính sách trình duyệt)
+        document.body.addEventListener('click', () => {
+            if (introScreen.classList.contains('active-screen') && bgAudio.paused) {
+                bgAudio.play().catch(e => console.log("Audio play prevented by browser"));
+            }
+        }, { once: true });
+
+        // Nút START
+        document.getElementById('start-btn').addEventListener('click', () => {
+            playerName = playerNameInput.value.trim();
+            if (!playerName) {
+                alert("Vui lòng nhập tên của bạn!");
+                return;
+            }
+            
+            // Đổi màn hình
+            introScreen.classList.remove('active-screen');
+            gameScreen.classList.add('active-screen');
+
+            // Xử lý âm thanh
+            bgAudio.pause();
+            tickAudio.play().catch(e => console.log("Lỗi chạy âm thanh tíc tắc"));
+
+            initGame();
+            startTimer();
+        });
+
+        // Hàm xáo trộn mảng (Fisher-Yates)
+        function shuffleArray(array) {
+            let arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // Khởi tạo Game
+        function initGame() {
+            // Xóa dữ liệu cũ
+            leftCol.innerHTML = '';
+            rightCol.innerHTML = '';
+            svgLayer.innerHTML = '';
+            connections = [];
+
+            // Xáo trộn 2 cột độc lập
+            const shuffledWords = shuffleArray(gameData);
+            const shuffledImages = shuffleArray(gameData);
+
+            // Render Cột trái (Từ vựng)
+            shuffledWords.forEach(data => {
+                const div = document.createElement('div');
+                div.className = 'item left-item';
+                div.dataset.id = data.id;
+                div.innerText = data.word;
+                div.addEventListener('click', () => handleSelect(div, 'left'));
+                leftCol.appendChild(div);
+            });
+
+            // Render Cột phải (Hình ảnh)
+            shuffledImages.forEach(data => {
+                const div = document.createElement('div');
+                div.className = 'item right-item';
+                div.dataset.id = data.id;
+                div.innerHTML = `<img src="${data.image}" alt="img" draggable="false">`;
+                div.addEventListener('click', () => handleSelect(div, 'right'));
+                rightCol.appendChild(div);
+            });
+        }
+
+        // Xử lý chọn ô
+        function handleSelect(element, side) {
+            // Không cho chọn nếu đã nối
+            if (element.classList.contains('matched')) return;
+
+            if (side === 'left') {
+                if (selectedLeft) selectedLeft.classList.remove('selected');
+                selectedLeft = element;
+                selectedLeft.classList.add('selected');
+            } else {
+                if (selectedRight) selectedRight.classList.remove('selected');
+                selectedRight = element;
+                selectedRight.classList.add('selected');
+            }
+
+            // Nếu đã chọn đủ 2 bên, tiến hành nối
+            if (selectedLeft && selectedRight) {
+                createConnection(selectedLeft, selectedRight);
+                
+                // Đánh dấu đã nối
+                selectedLeft.classList.remove('selected');
+                selectedRight.classList.remove('selected');
+                selectedLeft.classList.add('matched');
+                selectedRight.classList.add('matched');
+
+                // Reset biến chọn
+                selectedLeft = null;
+                selectedRight = null;
+            }
+        }
+
+        // Tạo đường kẻ (Chưa chấm đúng sai khúc này)
+        function createConnection(leftEl, rightEl) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            svgLayer.appendChild(line);
+
+            const connectionObj = {
+                leftId: leftEl.dataset.id,
+                rightId: rightEl.dataset.id,
+                leftEl: leftEl,
+                rightEl: rightEl,
+                line: line
+            };
+            connections.push(connectionObj);
+            updateLines();
+        }
+
+        // Cập nhật vị trí đường kẻ (khi scroll hoặc resize)
+        function updateLines() {
+            const containerRect = document.getElementById('game-container').getBoundingClientRect();
+            
+            connections.forEach(conn => {
+                const leftRect = conn.leftEl.getBoundingClientRect();
+                const rightRect = conn.rightEl.getBoundingClientRect();
+
+                // Tính toán điểm giữa của mép phải cột trái và mép trái cột phải
+                const x1 = leftRect.right - containerRect.left;
+                const y1 = leftRect.top + (leftRect.height / 2) - containerRect.top;
+                
+                const x2 = rightRect.left - containerRect.left;
+                const y2 = rightRect.top + (rightRect.height / 2) - containerRect.top;
+
+                conn.line.setAttribute('x1', x1);
+                conn.line.setAttribute('y1', y1);
+                conn.line.setAttribute('x2', x2);
+                conn.line.setAttribute('y2', y2);
+            });
+        }
+
+        window.addEventListener('resize', updateLines);
+
+        // Xử lý đếm ngược
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        // Nút FINISH
+        document.getElementById('finish-btn').addEventListener('click', endGame);
+
+        // Kết thúc trò chơi
+        function endGame() {
+            clearInterval(timerInterval);
+            tickAudio.pause();
+            
+            // Tính điểm
+            let score = 0;
+            connections.forEach(conn => {
+                if (conn.leftId === conn.rightId) {
+                    score++;
+                }
+            });
+
+            // Chuyển màn hình
+            gameScreen.classList.remove('active-screen');
+            resultScreen.classList.add('active-screen');
+
+            // Cập nhật text kết quả
+            document.getElementById('display-name').innerText = playerName;
+            document.getElementById('score').innerText = score;
+            document.getElementById('total-score').innerText = gameData.length;
+
+            // Bật nhạc win
+            winAudio.currentTime = 0;
+            winAudio.play().catch(e => console.log("Không tìm thấy/không chạy được nhạc win"));
+
+            // Kích hoạt pháo hoa 20 giây
+            launchConfetti();
+        }
+
+        // Hiệu ứng pháo hoa bằng thư viện canvas-confetti
+        function launchConfetti() {
+            var duration = 20 * 1000; // 20 giây
+            var animationEnd = Date.now() + duration;
+            var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
+
+            function randomInRange(min, max) {
+                return Math.random() * (max - min) + min;
+            }
+
+            var interval = setInterval(function() {
+                var timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                var particleCount = 50 * (timeLeft / duration);
+                
+                // Bắn từ 2 bên màn hình
+                confetti(Object.assign({}, defaults, { 
+                    particleCount,
+                    origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+                }));
+                confetti(Object.assign({}, defaults, { 
+                    particleCount,
+                    origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+                }));
+            }, 250);
+        }
+    </script>
+</body>
+</html>
